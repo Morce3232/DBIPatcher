@@ -4,6 +4,10 @@ on:
   push:
     tags:
       - 'v*'
+  pull_request:
+    paths:
+      - 'translate/**.txt'
+      - 'DBIPatcher/translate/**.txt'
 
 permissions:
   contents: write
@@ -142,9 +146,52 @@ jobs:
         path: bin/dbipatcher
         if-no-files-found: error
 
+  build-translations:
+    runs-on: windows-latest
+    if: github.event_name == 'pull_request' && contains(github.event.head_commit.message, 'translate') || contains(github.event.head_commit.message, 'translation')
+    needs: [build-windows]
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - name: Download Windows artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: dbipatcher-windows
+        path: bin/
+
+    - name: Install make
+      run: choco install make -y
+
+    - name: Build translations
+      run: |
+        $env:PATH = "C:\ProgramData\chocolatey\bin;$env:PATH"
+        
+        Write-Host "Available translation languages:"
+        make list-languages --no-print-directory
+        Write-Host "Building all translations..."
+        make translate-all --no-print-directory
+        if (Test-Path "temp/DBI_810/bin") {
+            Write-Host "Translation builds completed successfully!"
+            Get-ChildItem -Path "temp/DBI_810/bin" -Recurse
+        } else {
+            Write-Host "Error: Translation builds failed"
+            exit 1
+        }
+
+    - name: Upload translation artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: dbi-translations
+        path: temp/DBI_810/bin/
+        if-no-files-found: error
+
   create-release:
     runs-on: ubuntu-latest
     needs: [build-windows, build-linux, build-macos]
+    if: github.event_name != 'pull_request'
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -158,18 +205,23 @@ jobs:
       run: |
         find artifacts -type f | sort
   
-    # 新增步骤：准备 Release 文件
     - name: Prepare release assets
       run: |
         mkdir -p release_assets
-        # 复制 Windows 文件
         cp artifacts/dbipatcher-windows/dbipatcher.exe release_assets/dbipatcher-windows-${{ github.ref_name }}.exe
-        # 复制 Linux 文件并重命名
+        cp artifacts/dbipatcher-windows/libzstd.dll release_assets/libzstd.dll
         cp artifacts/dbipatcher-linux/dbipatcher release_assets/dbipatcher-linux-${{ github.ref_name }}
-        # 复制 macOS 文件并重命名
         cp artifacts/dbipatcher-macos/dbipatcher release_assets/dbipatcher-macos-${{ github.ref_name }}
-        # 查看准备后的文件
+
+        if [ -d "artifacts/dbi-translations" ]; then
+          mkdir -p release_assets/translations
+          cp -r artifacts/dbi-translations/* release_assets/translations/
+        fi
+        
         ls -la release_assets/
+        if [ -d "release_assets/translations" ]; then
+          ls -la release_assets/translations/
+        fi
   
     - name: Create Release
       uses: softprops/action-gh-release@v1
@@ -178,12 +230,12 @@ jobs:
         name: DBI Patcher ${{ github.ref_name }}
         body: |
           Automated build of DBI Patcher ${{ github.ref_name }}
-  
+
           **Platforms included:**
           - Windows (x86_64)
           - Linux (x86_64)
           - macOS (x86_64)
-  
+
           **Usage:**
           ```bash
           # Linux
@@ -193,7 +245,7 @@ jobs:
           # macOS
           chmod +x dbipatcher-macos-${{ github.ref_name }}
           ./dbipatcher-macos-${{ github.ref_name }} --help
-  
+
           # Windows
           dbipatcher-windows-${{ github.ref_name }}.exe --help
           ```
