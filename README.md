@@ -124,7 +124,7 @@ Real workflow for patching theoretical new version is:
 4. **--merge** your language file again, open in text editor and check for possible issues at its end
 5. Create blueprint using **--scan** - you might want to check some of the locations in ghidra to verify they were correctly detected
 6. **--patch** russian nro into english
-7. Test patched file. if there are still some russian strings present, use **--find-str** or **--find-imm* to locate them, add to dictionary and repeat
+7. Test patched file. if there are still some russian strings present, use **--find-str** or **--find-imm** to locate them, add to dictionary and repeat
 
 ## Legal Notice
 
@@ -133,3 +133,8 @@ This translation is distributed for educational and interoperability purposes. U
 ## License
 
 This translation work is released into the public domain. The original DBI software remains under its original license terms.
+
+## Honorable mentions
+
+* Yorunokyujitsu and bohdan.buinich for independently figuring out the translations as well
+* All the great people testing the translated builds
